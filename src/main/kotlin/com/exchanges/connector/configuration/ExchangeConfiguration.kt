@@ -1,8 +1,9 @@
 package com.exchanges.connector.configuration
 
 import com.exchanges.connector.CryptoExchange
-import com.exchanges.connector.impl.binance.BinanceExchange
+import com.exchanges.connector.impl.binance.BybitExchange
 import com.exchanges.connector.impl.CoinbaseExchange
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.reactive.function.client.WebClient
@@ -16,6 +17,7 @@ class ExchangeConfiguration(private val exchangeConfigProperties: ExchangeConfig
     }
 
     @Bean
+    @Qualifier(value = "exchangeClients")
     fun exchangeClients(webClientBuilder: WebClient.Builder): Map<String, CryptoExchange> {
         val exchanges = mutableMapOf<String, CryptoExchange>()
 
@@ -26,7 +28,7 @@ class ExchangeConfiguration(private val exchangeConfigProperties: ExchangeConfig
 
             // Instantiate specific exchange implementations based on the exchange name
             val exchangeClient: CryptoExchange = when (exchangeName.lowercase()) {
-                "binance" -> BinanceExchange(webClient, exchangeProps)
+                "binance" -> BybitExchange(webClient, exchangeProps)
                 "coinbase" -> CoinbaseExchange(webClient, exchangeProps)
                 // Add more exchanges as needed
                 else -> throw IllegalArgumentException("Unsupported exchange: $exchangeName")

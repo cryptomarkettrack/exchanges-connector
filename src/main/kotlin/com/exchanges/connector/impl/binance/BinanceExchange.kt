@@ -103,7 +103,7 @@ class BinanceExchange(
             .bodyToMono(Boolean::class.java)
     }
 
-    override fun listenToOrders(handler: OrderUpdateHandler): Flux<OrderUpdate> {
+    override fun listenToOrders(onUpdate: OrderUpdateHandler, onError: ErrorHandler): Flux<OrderUpdate> {
         return Flux.create { sink ->
             val request = Request.Builder()
                 .url("wss://stream.binance.com:9443/ws/btcusdt@order") // Adjust the endpoint for order updates
@@ -117,7 +117,7 @@ class BinanceExchange(
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     // Deserialize the order event JSON into BinanceOrderUpdate class
                     try {
-                        val orderUpdate = objectMapper.readValue<BinanceOrderUpdate>(text)
+                        val orderUpdate = objectMapper.readValue<BybitOrderUpdate>(text)
                         val unifiedOrder = OrderUpdate(
                             symbol = orderUpdate.symbol,
                             orderId = orderUpdate.orderId.toString(),
@@ -128,7 +128,7 @@ class BinanceExchange(
                         )
 
                         // Call the handler with the unified order
-                        handler(unifiedOrder)
+                        onUpdate(unifiedOrder)
 
                         sink.next(unifiedOrder) // Push the event into the Flux
                     } catch (e: Exception) {
@@ -138,7 +138,15 @@ class BinanceExchange(
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     println("WebSocket connection failed: ${t.message}")
-                    sink.error(t)
+                    t.message?.let {
+                        onError(
+                            ErrorResponse(
+                                message = it,
+                                code = 500
+                            )
+                        )
+                    }
+                    sink.error(t) // Trigger the retry
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -168,66 +176,54 @@ class BinanceExchange(
     override fun listenToTrades(onUpdate: TradeUpdateHandler, onError: ErrorHandler): Flux<TradeUpdate> {
         return Flux.create<TradeUpdate> { sink ->
             // WebSocket connection and listener setup
-            fun connect() {
-                val request = Request.Builder()
-                    .url(exchangeProps.wsBaseUrl + "/btcusdt@trade")
-                    .build()
+            val request = Request.Builder()
+                .url(exchangeProps.wsBaseUrl + "/btcusdt@trade")
+                .build()
 
-                val listener = object : WebSocketListener() {
-                    override fun onOpen(webSocket: WebSocket, response: Response) {
-                        println("Connected to Binance WebSocket for trade updates.")
-                    }
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    println("Connected to Binance WebSocket for trade updates.")
+                }
 
-                    override fun onMessage(webSocket: WebSocket, text: String) {
-                        try {
-                            // Deserialize the trade event JSON into TradeUpdate class
-                            val tradeUpdate = objectMapper.readValue<BinanceTradeUpdate>(text)
-                            val unifiedTrade = TradeUpdate(tradeUpdate.symbol, tradeUpdate.price, tradeUpdate.quantity)
-                            onUpdate(unifiedTrade)
-                            sink.next(unifiedTrade) // Push the event into the Flux
-                        } catch (e: Exception) {
-                            println("Failed to parse trade update: ${e.message}")
-                        }
-                    }
-
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        println("WebSocket connection failed: ${t.message}")
-                        t.message?.let {
-                            onError(
-                                ErrorResponse(
-                                    message = it,
-                                    code = 500
-                                )
-                            )
-                        }
-                        sink.error(t) // Trigger the retry
-                    }
-
-                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                        println("WebSocket closed: $reason")
-                        sink.complete()
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    try {
+                        // Deserialize the trade event JSON into TradeUpdate class
+                        val tradeUpdate = objectMapper.readValue<BinanceTradeUpdate>(text)
+                        val unifiedTrade = TradeUpdate(tradeUpdate.symbol, tradeUpdate.price, tradeUpdate.quantity)
+                        onUpdate(unifiedTrade)
+                        sink.next(unifiedTrade) // Push the event into the Flux
+                    } catch (e: Exception) {
+                        println("Failed to parse trade update: ${e.message}")
                     }
                 }
 
-                // Create WebSocket connection
-                val webSocket = okHttpClient.newWebSocket(request, listener)
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    println("WebSocket connection failed: ${t.message}")
+                    t.message?.let {
+                        onError(
+                            ErrorResponse(
+                                message = it,
+                                code = 500
+                            )
+                        )
+                    }
+                    sink.error(t) // Trigger the retry
+                }
 
-                // Close WebSocket on Flux termination
-                sink.onDispose {
-                    webSocket.close(1000, "Flux closed")
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    println("WebSocket closed: $reason")
+                    sink.complete()
                 }
             }
 
-            // Initial connection
-            connect()
+            // Create WebSocket connection
+            val webSocket = okHttpClient.newWebSocket(request, listener)
+
+            // Close WebSocket on Flux termination
+            sink.onDispose {
+                webSocket.close(1000, "Flux closed")
+            }
         }
-            .retryWhen(
-                Retry.fixedDelay(
-                    3,
-                    Duration.ofSeconds(5)
-                ) // Retry up to 3 times, with a 5 second delay between attempts
-                    .doBeforeRetry { retrySignal -> println("Reconnecting WebSocket due to error: ${retrySignal.failure().message}") }
-            )
     }
 
 }

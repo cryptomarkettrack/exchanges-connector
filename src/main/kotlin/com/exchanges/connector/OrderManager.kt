@@ -20,10 +20,12 @@ class OrderManager(private val exchangeClients: Map<String, CryptoExchange>) {
 
     fun listenToOrderUpdates(exchangeName: String): Flux<Void> {
         val exchange: CryptoExchange = getExchangeClient(exchangeName)
-        return exchange.listenToOrders { orderUpdate ->
+        return exchange.listenToOrders({ orderUpdate ->
             // Process the order update (e.g., log it, update the database, etc.)
-            println("Handling order update: $orderUpdate")
-        }.thenMany(Flux.empty())
+            println("Handling trade update: $orderUpdate")
+        }, { error ->
+            println("Error occurred: ${error.message}")
+        }).thenMany(Flux.empty())
     }
 
     fun listenToTradeUpdates(exchangeName: String): Flux<Void> {

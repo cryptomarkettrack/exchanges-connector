@@ -20,14 +20,4 @@ class OrderController(private val orderManager: OrderManager) {
     fun cancelOrder(@PathVariable exchange: String, @PathVariable orderId: String) {
         orderManager.cancelOrder(exchange, orderId).subscribe()
     }
-
-    @GetMapping("/listen-orders/{exchange}")
-    fun listenToOrders(@PathVariable exchange: String) {
-        orderManager.listenToOrderUpdates(exchange).subscribe()
-    }
-
-    @GetMapping("/listen-trades/{exchange}")
-    fun listenToTrades(@PathVariable exchange: String) {
-        orderManager.listenToTradeUpdates(exchange).subscribe()
-    }
 }

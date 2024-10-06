@@ -12,6 +12,6 @@ typealias ErrorHandler = (ErrorResponse) -> Unit
 interface CryptoExchange {
     fun placeOrder(orderRequest: OrderRequest): Mono<String>
     fun cancelOrder(orderId: String): Mono<Boolean>
-    fun listenToOrders(onUpdate: OrderUpdateHandler): Flux<OrderUpdate>
+    fun listenToOrders(onUpdate: OrderUpdateHandler, onError: ErrorHandler): Flux<OrderUpdate>
     fun listenToTrades(onUpdate: TradeUpdateHandler, onError: ErrorHandler): Flux<TradeUpdate>
 }

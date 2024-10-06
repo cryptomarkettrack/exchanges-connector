@@ -29,7 +29,7 @@ class CoinbaseExchange(private val webClient: WebClient, exchangeProps: Exchange
             .bodyToMono(Boolean::class.java)
     }
 
-    override fun listenToOrders(handler: OrderUpdateHandler): Flux<OrderUpdate> {
+    override fun listenToOrders(onUpdate: OrderUpdateHandler, onError: ErrorHandler): Flux<OrderUpdate> {
         // WebSocket listening logic here using OkHttp or WebClient
         return Flux.empty() // Placeholder
     }
